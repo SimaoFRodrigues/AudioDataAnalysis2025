@@ -1,0 +1,332 @@
+---
+title: Análise Musical de 2025
+format:
+    dashboard:
+        orientation: columns
+        css: assets/css/styles.css
+navbar:
+    right:
+        - text: "Stats"
+          href: "#stats"
+        - text: "Gráficos"
+          href: "#graficos"
+---
+
+# Stats
+## Primeira
+### Total de Músicas
+```{python}
+import json
+
+# carregar dados
+with open("data/dataset_musicas2025.json", encoding="utf-8") as f:
+    data = json.load(f)
+
+# calcular média
+total = 0
+
+for musica in data:
+    total += 1
+```
+```{python}
+#| content: valuebox
+#| title: Nº total de músicas
+
+dict(
+  icon = "collection",
+  color = "dark",
+  value = total
+)
+```
+
+### Tabela Músicas
+
+```{ojs}
+dataset = FileAttachment("data/dataset_musicas2025.json").json()
+
+// 1) Criar o dropdown (com view para reatividade correta em Quarto)
+viewof platformSelecionada = Inputs.select(
+  ["Spotify", "Apple Music", "YouTube"],
+  { label: "Plataforma", value: "Spotify" }
+)
+
+// 2) Usar o valor selecionado para filtrar
+musicasFiltradas = dataset
+  .filter(d => d.platform === platformSelecionada)
+  .map(d => ({
+    musica: d.track,
+    artista: d.artist
+  }))
+
+// 3) Mostrar a tabela
+Inputs.table(musicasFiltradas, {
+  columns: ["musica", "artista"],
+  header: { musica: "Música", artista: "Artista" }
+})
+
+```
+
+
+## Visualização de áudio
+### Música mais dançável
+```{python}
+import json
+with open("data/dataset_musicas2025.json", encoding="utf-8") as f:
+  data = json.load(f)
+
+# Somar danceability e contar músicas
+total_danceability = 0
+total_musics = 0
+
+for music in data:
+  total_danceability += music["features"]["danceability"]
+  total_musics += 1
+
+# Média
+avg_danceability = total_danceability / total_musics
+avg_danceability_percent = round(avg_danceability * 100, 1)
+
+```
+```{python}
+#| content: valuebox
+#| title: Danceability média
+
+dict(
+  icon = "boombox",
+  color = "warning",
+  value = f"{avg_danceability_percent}%"
+)
+```
+
+### BPMS
+``` {ojs}
+import {Plot} from "@observablehq/plot"
+
+// Extrair tempos (BPM)
+tempos = dataset
+  .filter(d => d.platform === platformSelecionada)
+  .map(d => d.features.tempo)
+
+Plot.plot({
+  title: `Distribuição de Tempo (BPM) (${platformSelecionada})`,
+  x: { label: "BPM" },
+  y: { label: "Nº de músicas" },
+  marks: [
+    Plot.rectY(
+      tempos,
+      Plot.binX(
+        { y: "count", thresholds: 10 },
+        { x: d => d }
+      )
+    )
+  ],
+  width: 600,
+  height: 400
+})
+
+```
+## Tabela de músicas
+### Música mais energética
+```{python}
+import json
+
+with open("data/dataset_musicas2025.json", encoding="utf-8") as f:
+  data = json.load(f)
+
+max_energy = -1
+top_music = None
+
+for music in data:
+  energy = music["features"]["energy"]
+
+  if energy > max_energy:
+    max_energy = energy
+    top_music = music
+
+track = top_music["track"]
+artist = top_music["artist"]
+energy_value = max_energy
+
+
+```
+```{python}
+#| content: valuebox
+#| title: Música mais energética
+
+dict(
+  icon = "lightning-charge-fill",
+  color = "danger",
+  value = f"{track} — {artist}"
+)
+```
+### Dancibilidade vs Energia
+```{ojs}
+
+// Filtrar músicas pela plataforma selecionada
+dadosScatter = dataset
+  .filter(d => d.platform === platformSelecionada)
+  .map(d => ({
+    danceability: d.features.danceability,
+    energy: d.features.energy,
+    musica: d.track,
+    artista: d.artist
+  }))
+
+Plot.plot({
+  title: `Danceability vs Energy (${platformSelecionada})`,
+  x: {
+    label: "Danceability",
+    domain: [0, 1]
+  },
+  y: {
+    label: "Energy",
+    domain: [0, 1]
+  },
+  marks: [
+    Plot.dot(dadosScatter, {
+      x: "danceability",
+      y: "energy",
+      r: 4,
+      title: d => `${d.musica} — ${d.artista}`
+    })
+  ],
+  width: 600,
+  height: 400
+})
+```
+# Gráficos
+
+## Barras
+```{ojs}
+// Distribuição de moods por plataforma — gráfico de barras empilhadas
+moodData2 = dataset
+.filter(d => d.platform === platformSelecionada)
+.map(d => {
+const { energy, valence } = d.features
+if (energy > 0.6 && valence > 0.6) return "Feliz & Energética"
+if (energy > 0.6) return "Intensa"
+if (valence > 0.6) return "Relaxante"
+return "Melancólica"
+})
+
+moodCount2 = Array.from(
+moodData2.reduce((m, k) => {
+m.set(k, (m.get(k) || 0) + 1)
+return m
+}, new Map()),
+([mood, count]) => ({ mood, count })
+)
+
+Plot.plot({
+title: `Distribuição de Mood (${platformSelecionada})`,
+y: { label: "Nº de músicas" },
+marks: [
+Plot.barY(moodCount2, {
+x: "mood",
+y: "count",
+fill: "mood",
+tip: true
+})
+],
+width: 400,
+height: 400
+})
+
+```
+
+## Heated
+```{ojs}
+chart = (() => {
+  // Filtrar dados pela plataforma
+  const dados = dataset.filter(d => d.platform === platformSelecionada);
+
+  // Perfil rítmico (métrica inventada)
+  const ritmo = {
+  "Ritmo Dançável": 0,
+  "Alta Velocidade": 0,
+  "Baixa Velocidade": 0,
+  "Ritmo Moderado": 0
+};
+
+
+  dados.forEach(d => {
+    const bpm = d.features.tempo;
+    const dance = d.features.danceability;
+
+    if (bpm > 120) ritmo["Alta Velocidade"]++;
+else if (bpm < 90) ritmo["Baixa Velocidade"]++;
+else if (dance >= 0.65) ritmo["Ritmo Dançável"]++;
+else ritmo["Ritmo Moderado"]++;
+
+  });
+
+  const data = Object.entries(ritmo).map(([name, value]) => ({
+    name,
+    value
+  }));
+
+  const width = 520;
+  const height = 420;
+  const radius = Math.min(width, height) / 2 - 15;
+
+  const color = d3.scaleOrdinal()
+    .domain(data.map(d => d.name))
+    .range(["#4CAF50", "#FF5722", "#2196F3", "#9C27B0"]);
+
+  const pie = d3.pie()
+    .sort(null)
+    .value(d => d.value);
+
+  const arc = d3.arc()
+    .innerRadius(radius * 0.45)
+    .outerRadius(radius);
+
+  const labelArc = d3.arc()
+    .innerRadius(radius * 0.8)
+    .outerRadius(radius * 0.8);
+
+  const arcs = pie(data);
+
+  const svg = d3.create("svg")
+    .attr("width", width)
+    .attr("height", height)
+    .attr("viewBox", [-width / 2, -height / 2, width, height])
+    .style("max-width", "100%")
+    .style("font", "11px sans-serif");
+
+  svg.append("g")
+    .attr("stroke", "white")
+    .selectAll("path")
+    .data(arcs)
+    .join("path")
+      .attr("fill", d => color(d.data.name))
+      .attr("d", arc)
+    .append("title")
+      .text(d => `${d.data.name}: ${d.data.value} músicas`);
+
+  svg.append("g")
+    .attr("text-anchor", "middle")
+    .selectAll("text")
+    .data(arcs)
+    .join("text")
+      .attr("transform", d => `translate(${labelArc.centroid(d)})`)
+      .call(text => text.append("tspan")
+        .attr("font-weight", "bold")
+        .text(d => d.data.name))
+      .call(text => text.append("tspan")
+        .attr("x", 0)
+        .attr("y", "1.1em")
+        .attr("fill-opacity", 0.7)
+        .text(d => d.data.value));
+
+  svg.append("text")
+    .attr("y", -height / 2 + 20)
+    .attr("text-anchor", "middle")
+    .attr("font-size", "16px")
+    .attr("font-weight", "bold")
+    .text(`Perfil Rítmico (${platformSelecionada})`);
+
+  return svg.node();
+})()
+
+```
