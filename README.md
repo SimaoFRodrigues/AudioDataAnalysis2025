@@ -2,6 +2,7 @@
 
 Este projeto consiste no desenvolvimento de um dashboard interativo para análise de características musicais de músicas de 2025. O trabalho foi desenvolvido recorrendo a Quarto, Python, Observable JavaScript (OJS) e D3.js. O dashboard permite explorar métricas quantitativas relacionadas com ritmo, energia e emoção musical, bem como comparar resultados entre diferentes plataformas de streaming.
 
+![image](audiodashboard_image.png)
 ## Instruções de Execução
 
 ### Requisitos
